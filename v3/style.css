@@ -1,0 +1,166 @@
+/* ---------------------------------------------------------------
+   Entanglement — v2
+   Page shell only. All artwork drawing lives in sketch.js.
+   --------------------------------------------------------------- */
+
+/* The static Medium cut. WEBGL reads glyph outlines straight from the
+   font's `glyf` table; a variable font keeps its outlines as deltas in
+   `gvar` which p5 does not apply, so it renders nothing in 3D. */
+@font-face {
+  font-family: 'Areal';
+  src: url('areal-medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: block;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+canvas {
+  display: block;
+  cursor: grab;
+}
+
+body.pointing canvas {
+  cursor: pointer;
+}
+
+body.grabbing canvas,
+body.grabbing.pointing canvas {
+  cursor: grabbing;
+}
+
+/* --- shared type for page chrome ------------------------------- */
+
+#hud,
+#readout {
+  position: fixed;
+  z-index: 10;
+  font-family: 'Areal', monospace;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #000;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* --- debug HUD ------------------------------------------------- */
+
+#hud {
+  top: 16px;
+  left: 16px;
+}
+
+#hud .row {
+  display: flex;
+  gap: 10px;
+}
+
+#hud .key {
+  width: 52px;
+  opacity: 0.4;
+}
+
+#hud .val {
+  font-weight: 500;
+}
+
+#hud .val.warn {
+  opacity: 0.45;
+}
+
+/* --- hover readout --------------------------------------------- */
+
+#readout {
+  bottom: 16px;
+  left: 16px;
+  max-width: 60vw;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+#readout.on {
+  opacity: 1;
+}
+
+#readout .title {
+  font-size: 15px;
+}
+
+#readout .meta {
+  opacity: 0.45;
+}
+
+/* --- camera hints ---------------------------------------------- */
+
+/* Sits inside the left panel, so it follows the readings above it
+   rather than needing an offset guessed from their height. */
+#controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 14px;
+  opacity: 0.35;
+}
+
+#controls b {
+  font-weight: 500;
+}
+
+/* --- entry ------------------------------------------------------ */
+
+#enter {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  cursor: pointer;
+  transition: opacity 0.6s ease;
+}
+
+#enter.gone {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#enter .sheet {
+  max-width: 30em;
+  padding: 0 32px;
+  font-family: 'Areal', sans-serif;
+  color: #000;
+}
+
+#enter h1 {
+  margin: 0 0 0.6em;
+  font-size: 40px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+#enter p {
+  margin: 0 0 1.4em;
+  font-size: 14px;
+  line-height: 1.65;
+  opacity: 0.75;
+}
+
+#enter .go {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.4;
+}
+
+#hud .val.muted {
+  opacity: 0.35;
+}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entanglement — v3 voice</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/p5@2.3.3/lib/p5.min.js"></script>
+</head>
+<body>
+
+  <div id="hud">
+    <div class="row"><span class="key">stream</span><span class="val" id="hud-status">booting</span></div>
+    <div class="row"><span class="key">tangle</span><span class="val" id="hud-count">0 / 26</span></div>
+    <div class="row"><span class="key">seen</span><span class="val" id="hud-seen">0</span></div>
+    <div class="row"><span class="key">bound</span><span class="val" id="hud-bound">0</span></div>
+    <div class="row"><span class="key">fps</span><span class="val" id="hud-fps">0</span></div>
+    <div class="row"><span class="key">sound</span><span class="val" id="hud-sound">on</span></div>
+
+    <div id="controls">
+      <span><b>drag</b> orbit</span>
+      <span><b>shift + drag</b> pan</span>
+      <span><b>scroll</b> zoom</span>
+      <span><b>double-click</b> reframe</span>
+      <span><b>m</b> mute</span>
+    </div>
+  </div>
+
+  <div id="readout"></div>
+
+  <div id="enter">
+    <div class="sheet">
+      <h1>Entanglement</h1>
+      <p>Every edit made to Wikipedia, as it happens, arriving faster than
+         anyone could read it. Nothing about these titles says they belong
+         together, so the only thing they share is used instead: a letter.
+         Where two share one they are tied at that letter, and the letter
+         sounds.</p>
+      <p class="go">click anywhere to begin</p>
+    </div>
+  </div>
+
+  <script src="sketch.js"></script>
+</body>
+</html>
