@@ -1,0 +1,591 @@
+/* ---------------------------------------------------------------
+   Entanglement — v4.2
+   Page shell only. All artwork drawing lives in sketch.js.
+   --------------------------------------------------------------- */
+
+/* The static Medium cut. WEBGL reads glyph outlines straight from the
+   font's `glyf` table; a variable font keeps its outlines as deltas in
+   `gvar` which p5 does not apply, so it renders nothing in 3D. */
+@font-face {
+  font-family: 'Areal';
+  src: url('areal-medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: block;
+}
+
+:root {
+  --ink:   #000;
+  --quiet: #8a8a8a;      /* the controls list: present, not competing */
+  --card:  #f1f1f1;      /* the one filled surface in the whole design */
+  --edge:  16px;         /* how far the chrome sits off the corner */
+
+  /* One easing for the whole interface. It overshoots very slightly and
+     settles, which is what makes a panel feel placed rather than
+     switched on. Everything that moves here uses it, so the chrome
+     moves as one thing. */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The same file again, under another name and with `swap` instead of
+   `block`. The loading screen is on show precisely WHILE Areal is being
+   fetched, and a `block` face renders nothing at all until it arrives —
+   the loader would be an empty white page for its first moments, which
+   is the one thing it exists to prevent. Declared this way the words
+   appear immediately in Helvetica and swap to Areal the instant it
+   lands. It is the same URL, so the browser fetches it once. */
+@font-face {
+  font-family: 'Areal Swap';
+  src: url('areal-medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+
+  /* Set here so the page chrome inherits it. Previously the toggle
+     reached for `font: inherit`, and body had no family of its own, so
+     the shorthand quietly reset it to the browser's default serif. */
+  font-family: 'Areal', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+canvas {
+  display: block;
+  cursor: grab;
+
+  /* A drag on a touch screen is the orbit gesture, not a page scroll or
+     a pinch-zoom. Without this the browser claims the gesture first and
+     the camera never sees it. */
+  touch-action: none;
+}
+
+body.pointing canvas {
+  cursor: pointer;
+}
+
+body.grabbing canvas,
+body.grabbing.pointing canvas {
+  cursor: grabbing;
+}
+
+/* --- shared type for page chrome ------------------------------- */
+
+#info-toggle,
+#info,
+#readout,
+#loading {
+  position: fixed;
+  z-index: 10;
+  font-family: 'Areal', sans-serif;
+  color: var(--ink);
+  user-select: none;
+}
+
+/* Everything sits inside the safe area, so nothing is lost behind a
+   notch at the top or a home indicator at the bottom. */
+#info-toggle,
+#info {
+  left: calc(var(--edge) + env(safe-area-inset-left));
+  top:  calc(var(--edge) + env(safe-area-inset-top));
+}
+
+/* --- info toggle ------------------------------------------------ */
+
+#info-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.34em;
+
+  margin: 0;
+  padding: 4px 10px 4px 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  /* Every font property named outright. The `font` shorthand is not
+     used here: it resets the family along with everything else. */
+  font-family: 'Areal', sans-serif;
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--ink);
+}
+
+#info-toggle .label {
+  transition: opacity 0.2s var(--ease);
+}
+
+#info-toggle:hover .label {
+  opacity: 0.55;
+}
+
+/* A filled square at rest, a triangle pointing down at the panel when
+   it is open — and a real morph between them rather than a swap.
+   Both are four-point percentage polygons, which is the condition for
+   `clip-path` to interpolate: the square's two bottom corners simply
+   travel to the same point in the middle. An `inset()` and a
+   `polygon()` cannot interpolate, so the earlier pair of shapes just
+   cut from one to the other. */
+#info-toggle .mark {
+  width:  0.58em;
+  height: 0.58em;
+  background: currentColor;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+  transition:
+    clip-path 0.5s var(--ease),
+    transform 0.5s var(--ease);
+}
+
+#info-toggle[aria-expanded="true"] .mark {
+  clip-path: polygon(0% 0%, 100% 0%, 50% 100%, 50% 100%);
+}
+
+#info-toggle:hover .mark {
+  transform: scale(1.14);
+}
+
+#info-toggle:active .mark {
+  transform: scale(0.94);
+}
+
+#info-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* --- info panel ------------------------------------------------- */
+
+#info {
+  top: calc(var(--edge) + env(safe-area-inset-top) + 54px);
+
+  box-sizing: border-box;
+  width: min(53vw, 700px);
+  max-height: calc(100vh - var(--edge) * 2 - 90px);
+  overflow-y: auto;
+
+  padding: 30px 34px 34px;
+  border-radius: 24px;
+
+  /* Slightly translucent rather than a solid plate, so the tangle stays
+     faintly present underneath: the panel reads as laid over the piece
+     instead of cut out of it. No `backdrop-filter` — blurring a canvas
+     that is already redrawing every frame costs more than the effect
+     is worth here. */
+  background: rgb(241 241 241 / 0.94);
+
+  /* It grows out of the toggle above it, not out of its own middle. */
+  transform-origin: 18px -18px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(0.97);
+  transition:
+    opacity    0.22s var(--ease),
+    transform  0.4s  var(--ease),
+    visibility 0s linear 0.4s;
+}
+
+#info.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity    0.26s var(--ease),
+    transform  0.46s var(--ease),
+    visibility 0s;
+}
+
+#info .blurb,
+#info .by {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#info .by {
+  margin-top: 1.1em;
+}
+
+#info a {
+  color: inherit;
+  text-underline-offset: 3px;
+  transition: opacity 0.2s var(--ease);
+}
+
+#info a:hover {
+  opacity: 0.55;
+}
+
+/* Controls on the left, readings on the right — the readings' own two
+   columns keep their values on a common right edge, so the numbers line
+   up as a column of numbers rather than trailing each label. */
+#info .panel {
+  display: flex;
+  gap: 28px;
+  margin-top: 34px;
+}
+
+#controls,
+#readings {
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.95;
+}
+
+#controls {
+  flex: 1 1 auto;
+  list-style: none;
+  color: var(--quiet);
+}
+
+#readings {
+  flex: 0 0 auto;
+  min-width: 190px;
+}
+
+#readings .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+#readings dt,
+#readings dd {
+  margin: 0;
+}
+
+#readings dd {
+  font-weight: 500;
+  text-align: right;
+
+  /* `seen` and `fps` change several times a second. Proportional digits
+     change width as they go, so the whole column twitches; tabular ones
+     hold their place. */
+  font-variant-numeric: tabular-nums;
+}
+
+#readings dd.warn {
+  color: var(--quiet);
+}
+
+/* The panel's contents arrive just behind the panel itself, and in
+   reading order — the sentence, then the byline, then the two columns
+   rising together row by row. The delays live only on `.open`, so
+   closing collapses at once instead of unwinding in slow motion. */
+#info .blurb,
+#info .by,
+#controls li,
+#readings .row {
+  opacity: 0;
+  transform: translateY(7px);
+  transition:
+    opacity   0.3s var(--ease),
+    transform 0.44s var(--ease);
+}
+
+#info.open .blurb,
+#info.open .by,
+#info.open #controls li,
+#info.open #readings .row {
+  opacity: 1;
+  transform: none;
+}
+
+#info.open .blurb { transition-delay: 0.05s; }
+#info.open .by    { transition-delay: 0.10s; }
+
+#info.open #controls li:nth-child(1),
+#info.open #readings .row:nth-child(1) { transition-delay: 0.15s; }
+#info.open #controls li:nth-child(2),
+#info.open #readings .row:nth-child(2) { transition-delay: 0.19s; }
+#info.open #controls li:nth-child(3),
+#info.open #readings .row:nth-child(3) { transition-delay: 0.23s; }
+#info.open #controls li:nth-child(4),
+#info.open #readings .row:nth-child(4) { transition-delay: 0.27s; }
+#info.open #controls li:nth-child(5),
+#info.open #readings .row:nth-child(5) { transition-delay: 0.31s; }
+#info.open #readings .row:nth-child(6) { transition-delay: 0.35s; }
+
+/* The sound reading is also the sound control. A phone has no `m` key,
+   so muting has to be reachable by tapping something. */
+#sound-toggle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  font-family: 'Areal', sans-serif;
+  font-size: inherit;
+  font-weight: 500;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.2s var(--ease);
+}
+
+#sound-toggle:hover {
+  opacity: 0.55;
+}
+
+#sound-toggle[aria-pressed="true"] {
+  color: var(--quiet);
+}
+
+#sound-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* --- hover / tap readout ---------------------------------------- */
+
+#readout {
+  /* Held in a variable so the centring on narrow screens and the
+     animation can share one transform without overwriting each other. */
+  --centre: 0px;
+
+  left:   calc(var(--edge) + env(safe-area-inset-left));
+  bottom: calc(var(--edge) + env(safe-area-inset-bottom));
+  max-width: min(60vw, 620px);
+
+  padding: 14px 26px;
+  border-radius: 999px;
+  background: rgb(241 241 241 / 0.94);
+
+  font-size: 14px;
+  line-height: 1.35;
+
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(var(--centre)) translateY(9px) scale(0.985);
+  transition:
+    opacity   0.18s var(--ease),
+    transform 0.36s var(--ease);
+}
+
+#readout.on {
+  opacity: 1;
+  transform: translateX(var(--centre));
+}
+
+#readout .meta {
+  color: var(--quiet);
+}
+
+/* --- loading ----------------------------------------------------
+   The same operation as the piece, done flat and cheaply: instances of
+   one word, each leaving a shared centre at its own angle, each in a
+   colour of its own, overprinting where they cross. They arrive one
+   after another and turn over continuously, which is what the tangle
+   itself does — so the wait is a small, honest picture of the thing
+   being waited for rather than a borrowed spinner.
+
+   All CSS, no canvas and no second asset: it has to be on screen before
+   the piece it is covering for has loaded anything.
+   ----------------------------------------------------------------- */
+
+#loading {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  background: #fff;
+
+  /* MULTIPLY needs a white ground to darken, and needs to be sealed off
+     so the blending cannot reach down into the canvas underneath. */
+  isolation: isolate;
+
+  transition: opacity 0.5s var(--ease), visibility 0s linear 0.5s;
+}
+
+#loading.gone {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#loading .tangle {
+  position: relative;
+  width: 0;
+  height: 0;
+
+  /* The words are placed as a composition, and a composition's middle is
+     not the point they happen to be measured from — they run outward to
+     the right of their own anchors, so the group's mass sits down and to
+     the right of it. Nudged back so the tangle, not its origin, is what
+     is centred on the page. */
+  transform: translate(-40px, -25px);
+
+  font-family: 'Areal Swap', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* Each word starts at its own point and runs outward from there. They
+   do NOT share one origin: seven words pivoting on a single point is a
+   rosette, and a rosette is a decoration. The real tangle branches — a
+   word begins partway along another word and leaves it at an angle — so
+   these are placed as a small tree, each starting somewhere on the one
+   before it. Asymmetric on purpose. */
+#loading .arm {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(var(--x), var(--y)) rotate(var(--a));
+  transform-origin: 0 50%;
+}
+
+#loading .word {
+  display: block;
+  color: var(--c);
+  mix-blend-mode: multiply;
+  animation: loading-word 5s var(--t) infinite both;
+}
+
+/* Where each word starts, the angle it leaves at, its colour, and when
+   it arrives. Hand-placed rather than generated: seven words is few
+   enough to compose, and composing them is the difference between a
+   structure and a spray. */
+#loading .arm:nth-child(1) { --x: -78px; --y:  -4px; --a:   9deg; --c: #FF2D6F; --t: 0.00s; }
+#loading .arm:nth-child(2) { --x: -16px; --y:  -2px; --a:  76deg; --c: #1F8A70; --t: 0.71s; }
+#loading .arm:nth-child(3) { --x:  10px; --y:  48px; --a: -37deg; --c: #2E7CC4; --t: 1.43s; }
+#loading .arm:nth-child(4) { --x:  58px; --y:   2px; --a: -72deg; --c: #F2A100; --t: 2.14s; }
+#loading .arm:nth-child(5) { --x:  40px; --y: -56px; --a:  24deg; --c: #6B4BE8; --t: 2.86s; }
+#loading .arm:nth-child(6) { --x: -38px; --y:  20px; --a: 119deg; --c: #1B3A6B; --t: 3.57s; }
+#loading .arm:nth-child(7) { --x:  82px; --y:  28px; --a:  -8deg; --c: #E8412A; --t: 4.29s; }
+
+/* Slower, and each word is on screen for well under half its cycle, so
+   only two or three stand at a time. Sparse is the point: MULTIPLY has
+   nothing to show but the crossings, and a crossing can only be read
+   when there is white to either side of it. */
+@keyframes loading-word {
+  0%        { opacity: 0; transform: scale(0.88); }
+  7%        { opacity: 1; transform: scale(1); }
+  38%       { opacity: 1; transform: scale(1); }
+  50%, 100% { opacity: 0; transform: scale(1.03); }
+}
+
+/* Named for the screen reader, which should hear `Loading` once rather
+   than seven times. */
+#loading .sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- narrow screens ---------------------------------------------
+   The two views stack themselves (see layoutViews). What changes here
+   is the chrome, and mostly by getting out of the way: the panel goes
+   full width because there is no second column to share with, and the
+   readout centres itself because a pill pinned to one corner of a
+   375px screen reads as having fallen there.
+   ----------------------------------------------------------------- */
+
+@media (max-width: 700px) {
+  :root {
+    --edge: 14px;
+  }
+
+  #info-toggle {
+    font-size: 30px;
+  }
+
+  #info {
+    top: calc(var(--edge) + env(safe-area-inset-top) + 48px);
+    width: calc(100vw - var(--edge) * 2
+                - env(safe-area-inset-left) - env(safe-area-inset-right));
+    max-height: calc(100vh - var(--edge) * 2 - 80px);
+    padding: 24px 24px 26px;
+    border-radius: 20px;
+  }
+
+  #info .panel {
+    /* Three columns inside 375px leaves each of them too narrow to
+       read as a column. Stacked, the controls are a list and the
+       readings are a table, which is what they each already were. */
+    flex-direction: column;
+    gap: 26px;
+    margin-top: 28px;
+  }
+
+  #readings {
+    min-width: 0;
+  }
+
+  #readout {
+    /* Centred, and never wider than the screen it has to fit on. */
+    --centre: -50%;
+    left: 50%;
+    max-width: calc(100vw - var(--edge) * 4);
+    padding: 12px 22px;
+    font-size: 13px;
+    text-align: center;
+  }
+}
+
+/* A touch target under about 44px is one that gets missed. The type is
+   smaller than that on purpose, so the target is grown around it. */
+@media (pointer: coarse) {
+  #info-toggle {
+    padding: 10px 14px 10px 0;
+  }
+
+  #sound-toggle {
+    padding: 8px 0;
+  }
+
+  /* Nothing hovers on a touch screen, and a `:hover` that latches after
+     a tap looks like a bug. */
+  #info-toggle:hover .label,
+  #info a:hover,
+  #sound-toggle:hover {
+    opacity: 1;
+  }
+
+  #info-toggle:hover .mark {
+    transform: none;
+  }
+}
+
+/* Motion is decoration here — every state it moves between is legible
+   without it. Asked to stop, it stops; the spinner keeps turning,
+   because a loading indicator that does not move is not one. */
+@media (prefers-reduced-motion: reduce) {
+  #info-toggle .label,
+  #info-toggle .mark,
+  #info,
+  #info .blurb,
+  #info .by,
+  #info a,
+  #controls li,
+  #readings .row,
+  #sound-toggle,
+  #readout,
+  #loading {
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
+  }
+
+  /* The loading tangle stops turning over and simply stands there, all
+     nine words present. It still says what it needs to say — it just
+     stops saying it repeatedly. */
+  #loading .word {
+    animation: none;
+    opacity: 1;
+  }
+}
