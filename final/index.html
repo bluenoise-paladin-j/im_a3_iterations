@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>WikiTree</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/p5@2.3.3/lib/p5.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/p5.sound@0.4.1/dist/p5.sound.min.js"></script>
+</head>
+<body>
+
+  <div id="brand">
+    <h1>WikiTree</h1>
+    <span class="sep" aria-hidden="true">&bull;</span>
+    <button id="info-toggle" type="button" aria-expanded="false" aria-controls="info">
+      <span class="label">Info</span>
+      <span class="mark" aria-hidden="true"></span>
+    </button>
+  </div>
+
+  <section id="info" inert>
+    <p class="blurb">An impulse to categorise, turned on a stream with nothing in
+      common but letters. Shared graphemes become visual tangles and audible
+      phonemes.</p>
+
+    <p class="by">By Jared Amuso &bull; live edits from
+      <a href="https://stream.wikimedia.org/v2/stream/recentchange"
+         target="_blank" rel="noopener">Wikimedia's recentchange stream</a></p>
+
+    <div class="panel">
+      <ul id="controls"></ul>
+
+      <dl id="readings">
+        <div class="row"><dt>stream</dt><dd id="stat-stream">booting</dd></div>
+        <div class="row"><dt>tangle</dt><dd id="stat-tangle">0</dd></div>
+        <div class="row"><dt>seen</dt>  <dd id="stat-seen">0</dd></div>
+        <div class="row"><dt>bound</dt> <dd id="stat-bound">0</dd></div>
+        <div class="row"><dt>fps</dt>   <dd id="stat-fps">0</dd></div>
+        <div class="row"><dt>sound</dt>
+          <dd><button id="sound-toggle" type="button" aria-pressed="false">off</button></dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <div id="readout"></div>
+
+  <div id="loading" role="status">
+    <div class="tangle" aria-hidden="true">
+      <span class="arm"><span class="word">loading</span></span>
+      <span class="arm"><span class="word">loading</span></span>
+      <span class="arm"><span class="word">loading</span></span>
+      <span class="arm"><span class="word">loading</span></span>
+      <span class="arm"><span class="word">loading</span></span>
+      <span class="arm"><span class="word">loading</span></span>
+      <span class="arm"><span class="word">loading</span></span>
+    </div>
+    <span class="sr">Loading</span>
+  </div>
+
+  <script src="sketch.js"></script>
+</body>
+</html>

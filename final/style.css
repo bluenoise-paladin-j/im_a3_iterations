@@ -1,0 +1,539 @@
+/* WikiTree — page shell only; the artwork is all in sketch.js. */
+
+
+/* --- font ---------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Areal';
+  src: url('areal-medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: block;
+}
+
+/* Same file, declared again for the loading screen. `block` renders nothing
+   until the font lands, which would leave the loader blank for its first
+   moments; `swap` shows Helvetica immediately. Same URL, fetched once. */
+@font-face {
+  font-family: 'Areal Swap';
+  src: url('areal-medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+}
+
+/* --- page ---------------------------------------------------------- */
+
+:root {
+  --ink:   #000;
+  --quiet: #8a8a8a;      /* the controls list: present, not competing */
+  --card:  rgb(241 241 241 / 0.94);   /* the one filled surface in the whole design */
+  --edge:  16px;         /* how far the chrome sits off the corner */
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);   /* one curve for everything that moves */
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+
+  font-family: 'Areal', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+canvas {
+  display: block;
+
+  touch-action: none;   /* or the browser eats the drag before the orbit sees it */
+}
+
+/* no cursor rules — the sketch sets grab / pointer / grabbing with cursor() */
+
+
+/* --- page chrome — shared ------------------------------------------ */
+
+#brand,
+#info,
+#readout,
+#loading {
+  position: fixed;
+  z-index: 10;
+  color: var(--ink);
+  user-select: none;
+}
+
+#brand,
+#info {
+  left: calc(var(--edge) + env(safe-area-inset-left));
+  top:  calc(var(--edge) + env(safe-area-inset-top));
+}
+
+
+/* --- brand --------------------------------------------------------- */
+
+/* The title and the control sit on one line, so the chrome costs one line
+   of a view that is only half the screen tall on a phone. */
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+
+  /* Drawn in difference so it stays readable over whatever the tangle puts
+     behind it. Difference inverts its source, so the row is WHITE: over the
+     white page that comes out black, and over a word it comes out as that
+     word's inverse. Black text here would render as the backdrop and
+     disappear. The blend has to sit on the row, not its children — #brand
+     makes a stacking context, which isolates anything inside it. */
+  color: #fff;
+  mix-blend-mode: difference;
+
+  font-size: 34px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+#brand h1 {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+
+/* --- info toggle --------------------------------------------------- */
+
+#info-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.34em;
+
+  margin: 0;
+  padding: 4px 10px 4px 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  /* Spelled out, never the `font` shorthand — it resets the family too. */
+  font-family: 'Areal', sans-serif;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  color: inherit;      /* white, from #brand — black would vanish in difference */
+}
+
+/* A palette colour per hover, set on the button from the sketch. It is
+   pre-inverted there, because difference will invert it again on the way out.
+   The children let the pointer through, so p5's mouseOver() fires once per
+   entry instead of again for the label and the mark. */
+#info-toggle > * {
+  pointer-events: none;
+}
+
+/* Square at rest, triangle when open. Both are four-point percentage
+   polygons, which is what lets clip-path actually interpolate. */
+#info-toggle .mark {
+  width:  0.58em;
+  height: 0.58em;
+  background: currentColor;
+  clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+  transition:
+    clip-path 0.5s var(--ease),
+    transform 0.5s var(--ease);
+}
+
+#info-toggle[aria-expanded="true"] .mark {
+  clip-path: polygon(0% 0%, 100% 0%, 50% 100%, 50% 100%);
+}
+
+#info-toggle:hover .mark {
+  transform: scale(1.14);
+}
+
+#info-toggle:active .mark {
+  transform: scale(0.94);
+}
+
+#info-toggle:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+
+/* --- info panel ---------------------------------------------------- */
+
+#info {
+  top: calc(var(--edge) + env(safe-area-inset-top) + 54px);
+
+  box-sizing: border-box;
+  width: min(53vw, 700px);
+  max-height: calc(100vh - var(--edge) * 2 - 90px);
+  overflow-y: auto;
+
+  padding: 30px 34px 34px;
+  border-radius: 24px;
+
+  background: var(--card);
+
+  transform-origin: 18px -18px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px) scale(0.97);
+  transition:
+    opacity    0.22s var(--ease),
+    transform  0.4s  var(--ease),
+    visibility 0s linear 0.4s;
+}
+
+#info.open {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity    0.26s var(--ease),
+    transform  0.46s var(--ease),
+    visibility 0s;
+}
+
+#info .blurb,
+#info .by {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#info .by {
+  margin-top: 1.1em;
+}
+
+#info a {
+  color: inherit;
+  text-underline-offset: 3px;
+  transition: opacity 0.2s var(--ease);
+}
+
+#info a:hover {
+  opacity: 0.55;
+}
+
+#info .panel {
+  display: flex;
+  gap: 28px;
+  margin-top: 34px;
+}
+
+#controls,
+#readings {
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.95;
+}
+
+#controls {
+  flex: 1 1 auto;
+  list-style: none;
+  color: var(--quiet);
+}
+
+#readings {
+  flex: 0 0 auto;
+  min-width: 190px;
+}
+
+#readings .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+#readings dt,
+#readings dd {
+  margin: 0;
+}
+
+#readings dd {
+  font-weight: 500;
+  text-align: right;
+
+  font-variant-numeric: tabular-nums;
+}
+
+#readings dd.warn {
+  color: var(--quiet);
+}
+
+#info .blurb,
+#info .by,
+#controls li,
+#readings .row {
+  opacity: 0;
+  transform: translateY(7px);
+  transition:
+    opacity   0.3s var(--ease),
+    transform 0.44s var(--ease);
+}
+
+#info.open .blurb,
+#info.open .by,
+#info.open #controls li,
+#info.open #readings .row {
+  opacity: 1;
+  transform: none;
+}
+
+/* Contents arrive behind the panel, in reading order. Delays only on .open,
+   so closing collapses at once instead of unwinding. */
+#info.open .blurb { transition-delay: 0.05s; }
+#info.open .by    { transition-delay: 0.10s; }
+
+#info.open #controls li:nth-child(1),
+#info.open #readings .row:nth-child(1) { transition-delay: 0.15s; }
+#info.open #controls li:nth-child(2),
+#info.open #readings .row:nth-child(2) { transition-delay: 0.19s; }
+#info.open #controls li:nth-child(3),
+#info.open #readings .row:nth-child(3) { transition-delay: 0.23s; }
+#info.open #controls li:nth-child(4),
+#info.open #readings .row:nth-child(4) { transition-delay: 0.27s; }
+#info.open #controls li:nth-child(5),
+#info.open #readings .row:nth-child(5) { transition-delay: 0.31s; }
+#info.open #readings .row:nth-child(6) { transition-delay: 0.35s; }
+
+/* --- sound toggle -------------------------------------------------- */
+
+#sound-toggle {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+
+  font-family: 'Areal', sans-serif;
+  font-size: inherit;
+  font-weight: 500;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: opacity 0.2s var(--ease);
+}
+
+#sound-toggle:hover {
+  opacity: 0.55;
+}
+
+#sound-toggle[aria-pressed="true"] {
+  color: var(--quiet);
+}
+
+#sound-toggle:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+
+/* --- hover / tap readout ------------------------------------------- */
+
+#readout {
+  --centre: 0px;
+
+  left:   calc(var(--edge) + env(safe-area-inset-left));
+  bottom: calc(var(--edge) + env(safe-area-inset-bottom));
+  max-width: min(60vw, 620px);
+
+  padding: 14px 26px;
+  border-radius: 999px;
+  background: var(--card);
+
+  font-size: 14px;
+  line-height: 1.35;
+
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(var(--centre)) translateY(9px) scale(0.985);
+  /* The background is NOT transitioned. The text colour flips instantly to
+     whichever contrasts, so a fading background would spend the crossfade
+     not matching it — white text on a near-white pill. They change together
+     or not at all. */
+  transition:
+    opacity   0.18s var(--ease),
+    transform 0.36s var(--ease);
+}
+
+#readout.on {
+  opacity: 1;
+  transform: translateX(var(--centre));
+}
+
+
+/* --- loading ------------------------------------------------------- */
+
+#loading {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+  background: #fff;
+
+  isolation: isolate;   /* seal the multiply off from the canvas underneath */
+
+  transition: opacity 0.5s var(--ease), visibility 0s linear 0.5s;
+}
+
+#loading.gone {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#loading .tangle {
+  position: relative;
+  width: 0;
+  height: 0;
+
+  /* the words run right from their own anchors, so the group's mass sits down
+     and right of the origin. Measured off the seven-word box, not guessed. */
+  transform: translate(-40px, -25px);
+
+  font-family: 'Areal Swap', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+#loading .arm {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(var(--x), var(--y)) rotate(var(--a));
+  transform-origin: 0 50%;
+}
+
+#loading .word {
+  display: block;
+  color: var(--c);
+  mix-blend-mode: multiply;
+  animation: loading-word 5s var(--t) infinite both;
+}
+
+/* Hand-placed as a small branching tree, not a ring — each word starts
+   somewhere on the one before it. x/y from centre, angle, colour, entry. */
+#loading .arm:nth-child(1) { --x: -78px; --y:  -4px; --a:   9deg; --c: #ff2e70; --t: 0.00s; }
+#loading .arm:nth-child(2) { --x: -16px; --y:  -2px; --a:  76deg; --c: #1F8A70; --t: 0.71s; }
+#loading .arm:nth-child(3) { --x:  10px; --y:  48px; --a: -37deg; --c: #2E7CC4; --t: 1.43s; }
+#loading .arm:nth-child(4) { --x:  58px; --y:   2px; --a: -72deg; --c: #F2A100; --t: 2.14s; }
+#loading .arm:nth-child(5) { --x:  40px; --y: -56px; --a:  24deg; --c: #6B4BE8; --t: 2.86s; }
+#loading .arm:nth-child(6) { --x: -38px; --y:  20px; --a: 119deg; --c: #1B3A6B; --t: 3.57s; }
+#loading .arm:nth-child(7) { --x:  82px; --y:  28px; --a:  -8deg; --c: #E8412A; --t: 4.29s; }
+
+@keyframes loading-word {
+  0%        { opacity: 0; transform: scale(0.88); }
+  7%        { opacity: 1; transform: scale(1); }
+  38%       { opacity: 1; transform: scale(1); }
+  50%, 100% { opacity: 0; transform: scale(1.03); }
+}
+
+#loading .sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+
+/* --- narrow screens ------------------------------------------------ */
+
+@media (max-width: 700px) {
+  :root {
+    --edge: 14px;
+  }
+
+  #brand {
+    font-size: 30px;
+  }
+
+  #info {
+    /* Clears the brand row, which is 50px on touch — the tap padding makes
+       it taller than the 42px it is with a mouse. */
+    top: calc(var(--edge) + env(safe-area-inset-top) + 58px);
+    width: calc(100vw - var(--edge) * 2
+                - env(safe-area-inset-left) - env(safe-area-inset-right));
+    max-height: calc(100vh - var(--edge) * 2 - 80px);
+    padding: 24px 24px 26px;
+    border-radius: 20px;
+  }
+
+  #info .panel {
+    flex-direction: column;
+    gap: 26px;
+    margin-top: 28px;
+  }
+
+  #readings {
+    min-width: 0;
+  }
+
+  #readout {
+    --centre: -50%;
+    left: 50%;
+    /* max-content, or left: 50% caps it at the right half of the screen */
+    box-sizing: border-box;
+    width: max-content;
+    max-width: calc(100vw - var(--edge) * 2);
+    padding: 12px 22px;
+    font-size: 13px;
+    text-align: center;
+  }
+}
+
+/* --- touch --------------------------------------------------------- */
+
+@media (pointer: coarse) {
+  #info-toggle {
+    padding: 10px 14px 10px 0;
+  }
+
+  #sound-toggle {
+    padding: 8px 0;
+  }
+
+  #info a:hover,
+  #sound-toggle:hover {
+    opacity: 1;
+  }
+
+  #info-toggle:hover .mark {
+    transform: none;
+  }
+}
+
+/* --- reduced motion ------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  #info-toggle .mark,
+  #info,
+  #info .blurb,
+  #info .by,
+  #info a,
+  #controls li,
+  #readings .row,
+  #sound-toggle,
+  #readout,
+  #loading {
+    transition-duration: 0.01ms;
+    transition-delay: 0s;
+  }
+
+  #loading .word {
+    animation: none;
+    opacity: 1;
+  }
+}
